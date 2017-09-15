@@ -134,7 +134,7 @@ class PostCmd(Cmd):
 		
 		format = to_format(input('Format: ') or FORMAT_KEYS[0])
 		if format == None:
-			print('Canceled:', 'No such format \'' + format + '\'')
+			print('Canceled:', 'No such format \'%s\'' % format)
 			return False
 		print(format['key'])
 		
@@ -151,7 +151,7 @@ class PostCmd(Cmd):
 		else:
 			id = site.post(None, title, format['key'], body)
 			
-			print('Posted:', '\'' + title + '\'', 'as ID(' + str(id) + ')')
+			print('Posted:', '\'%s\'' % title, 'as ID(%d)' % id)
 			return True
 
 	def print_help(self):
@@ -179,25 +179,44 @@ class EditCmd(Cmd):
 		title, format, body = cursor.fetchone()
 		cursor.close()
 		
-		print('Title:', title)
-		print('Format:', format)
+		title_updated = False
+		format_updated = False
+		body_updated = False
 		
+		print('Title:', title)
+		if input('Change title? (y/n)> ') == 'y':
+			new_title = input('Title: ')
+			if len(title) == 0:
+				print('Updated title: %s -> %s' % (title, new_title))
+				title = new_title
+				title_updated = True
+		
+		print('Format:', format)
+		if input('Change format? (y/n)> ') == 'y':
+			print_formats()
+			new_format = input('Format: ')
+			if to_format(new_format) != None:
+				print('Updated format: %s -> %s' % (format, new_format))
+				format = new_format
+				format_updated = True
 		format = to_format(format)
 		
-		print('Body:', end=' ')
-		body, updated = edit_temp(body, suffix=format['extension'])
-		print(len(body), 'chars')
+		if input('Edit body? (y/n)> ') == 'y':
+			print('Body:', end=' ')
+			body, body_updated = edit_temp(body, suffix=format['extension'])
+			print(len(body), 'chars')
 		
-		if len(body) == 0:
-			print('Canceled:', 'Null body')
-			return False
-		elif not updated:
+			if len(body) == 0:
+				print('Canceled:', 'Null body')
+				return False
+		
+		if title_updated or format_updated or body_updated:
+			id = site.post(id, title, format['key'], body)
+			print('Edited:', '\'%s\'' % title, 'as ID(%d)' % id)
+			return True
+		else:
 			print('Canceled:', 'No update')
 			return False
-		else:
-			id = site.post(id, title, format['key'], body)
-			print('Edited:', '\'' + title + '\'', 'as ID(' + str(id) + ')')
-			return True
 	
 	def print_help(self):
 		print('''PostCmd:
