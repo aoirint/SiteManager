@@ -186,7 +186,7 @@ class EditCmd(Cmd):
 		print('Title:', title)
 		if input('Change title? (y/n)> ') == 'y':
 			new_title = input('Title: ')
-			if len(title) != 0:
+			if len(new_title) != 0:
 				print('Updated title: %s -> %s' % (title, new_title))
 				title = new_title
 				title_updated = True
