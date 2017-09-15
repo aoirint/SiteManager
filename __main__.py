@@ -33,20 +33,20 @@ if __name__ == '__main__':
 				continue
 			
 			id = None
-			if cmdc == 1 and cmdv[0] in ('exit', 'q'):
+			if cmdv[0] in ('exit', 'q'):
 				running = False
 			elif cmdv[0] in cmds:
 				if '-h' in opts:
 					cmds[cmdv[0]].print_help()
 				else:
 					cmds[cmdv[0]](cmdv, cmdc, opts, site_)
-			elif 'help':
+			elif cmdv[0] in ('help', '?'):
 				print('''Help
 Command List:
 To read help for each command, use '-h' option.''')
 				for k in cmds:
 					print('	' + k)
-				print('''	help
+				print('''	help/?
 	exit/q''')
 			else:
 				print('Invalid command: ' + input_text)

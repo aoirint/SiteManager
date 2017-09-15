@@ -22,7 +22,7 @@ class Site:
 			if row != None:
 				postedTime = row[0]
 		
-		cursor.execute('REPLACE INTO pages(id,modifiedTime,title,format,body) VALUES(?,?,?,?,?)', (id, now, title, format, body))
+		cursor.execute('REPLACE INTO pages(id,postedTime,modifiedTime,title,format,body) VALUES(?,?,?,?,?,?)', (id, postedTime, now, title, format, body))
 		self.db.commit()
 		
 		cursor.execute('SELECT id FROM pages WHERE ROWID=last_insert_rowid()')
