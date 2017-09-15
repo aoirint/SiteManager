@@ -54,7 +54,7 @@ def to_format(keyOrIdx):
 	return None
 
 class Cmd:
-	def __call__(self, vcmdv, cmdc):
+	def __call__(self, cmdv, cmdc, opts, site):
 		print('Cmd')
 		pass
 
@@ -119,7 +119,7 @@ class PagesCmd(Cmd):
 ''')
 
 class PostCmd(Cmd):
-	def __call__(self, cmdv, cmdc, site):
+	def __call__(self, cmdv, cmdc, opts, site):
 		print('PostCmd')
 		if cmdc != 1:
 			print('Invalid call: The number of arguments must be 0, post')
@@ -160,7 +160,7 @@ class PostCmd(Cmd):
 		新規にページを投稿する''')
 
 class EditCmd(Cmd):
-	def __call__(self, cmdv, cmdc, site):
+	def __call__(self, cmdv, cmdc, opts, site):
 		print('EditCmd')
 		if cmdc != 2:
 			print('Invalid call: The number of arguments must be 1, edit <id>')
