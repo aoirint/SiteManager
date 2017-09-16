@@ -123,6 +123,7 @@ def out(site, link, out_dir=None, print_out_dir=True):
 		if overwrite:
 			os.remove(file)
 			print('Removed: \'%s\'' % path)
+			
 			ls = path.split('/')[:-1]
 			l = len(ls)
 			for i in range(l):
@@ -131,6 +132,7 @@ def out(site, link, out_dir=None, print_out_dir=True):
 				if len(os.listdir(dir)) == 0:
 					os.rmdir(dir)
 					print('Removed empty dir: \'%s\'' % base)
+		site.remove_link(path, True)
 		return True
 	
 	msg = 'New'
@@ -409,8 +411,7 @@ class LinksCmd:
 		for row in cursor.execute('SELECT path,id FROM links'):
 			path = row[0]
 			id = row[1]
-			if id != None:
-				print(path, '->', id)
+			print(path, '->', id)
 		
 		cursor.close()
 	
