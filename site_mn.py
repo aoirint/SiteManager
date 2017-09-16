@@ -77,7 +77,7 @@ class Site:
 		now = int(time.time())
 		
 		cursor = self.db.cursor()
-		cursor.execute('UPDATE links SET lastOutTime=? WHERE path=?', (path, now))
+		cursor.execute('UPDATE links SET lastOutTime=? WHERE path=?', (now, path))
 		self.db.commit()
 		cursor.close()
 	

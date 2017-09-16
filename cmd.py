@@ -116,18 +116,25 @@ def out(site, link, out_dir=None, print_out_dir=True):
 	id = link['id']
 	lastOutTime = link['lastOutTime'] or 0
 	
-	cursor.execute('SELECT * FROM pages WHERE id=?', (id, ))
+	msg = 'New'
+	cursor.execute('SELECT modifiedTime,title FROM pages WHERE id=?', (id, ))
 	row = cursor.fetchone()
 	if row == None:
 		print('Not found ID(%d) for %s' % (id, path))
 		return False
+	modifiedTime = row[0]
+	title = row[1]
+	if modifiedTime < lastOutTime:
+		print(path, '->', id, title, 'Skip')
+		return False
+	
+	cursor.execute('SELECT postedTime,format,body FROM pages WHERE id=?', (id, ))
+	row = cursor.fetchone()
 	cursor.close()
-
-	postedTime = row[1]
-	modifiedTime = row[2]
-	title = row[3]
-	format = row[4]
-	body = row[5]
+	
+	postedTime = row[0]
+	format = row[1]
+	body = row[2]
 	
 	file = os.path.join(out_dir, '%s.html' % path)
 	
@@ -151,7 +158,6 @@ def out(site, link, out_dir=None, print_out_dir=True):
 		fp.write(body)
 	site.on_out(path)
 	
-	msg = ''
 	if overwrite:
 		msg = 'Overwrite'
 	else:
