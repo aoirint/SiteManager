@@ -26,7 +26,7 @@ if __name__ == '__main__':
 			cmdv = input_text.split(' ')
 			opts = []
 			for v in cmdv:
-				if v[0] == '-':
+				if len(v) > 1 and v[0] == '-' and not v[1].isnumeric():
 					opts.append(v)
 			
 			for v in opts:

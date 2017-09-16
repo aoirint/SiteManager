@@ -62,7 +62,7 @@ class Site:
 	
 	def remove_link(self, path):
 		cursor = self.db.cursor()
-		cursor.execute('DELETE FROM links WHERE path=?', (path, ))
+		cursor.execute('UPDATE links SET id=NULL WHERE path=?', (path, ))
 		self.db.commit()
 		cursor.close()
 	

@@ -116,6 +116,23 @@ def out(site, link, out_dir=None, print_out_dir=True):
 	id = link['id']
 	lastOutTime = link['lastOutTime'] or 0
 	
+	file = os.path.join(out_dir, '%s.html' % path)
+	dirs = os.path.dirname(file)
+	overwrite = os.path.exists(file)
+	if id == None:
+		if overwrite:
+			os.remove(file)
+			print('Removed: \'%s\'' % path)
+			ls = path.split('/')[:-1]
+			l = len(ls)
+			for i in range(l):
+				base = '/'.join(ls[0:l - i])
+				dir = os.path.join(out_dir, base)
+				if len(os.listdir(dir)) == 0:
+					os.rmdir(dir)
+					print('Removed empty dir: \'%s\'' % base)
+		return True
+	
 	msg = 'New'
 	cursor.execute('SELECT modifiedTime,title FROM pages WHERE id=?', (id, ))
 	row = cursor.fetchone()
@@ -136,8 +153,6 @@ def out(site, link, out_dir=None, print_out_dir=True):
 	format = row[1]
 	body = row[2]
 	
-	file = os.path.join(out_dir, '%s.html' % path)
-	
 	replacement = {
 		'title': title,
 		'postedTime': postedTime,
@@ -150,8 +165,7 @@ def out(site, link, out_dir=None, print_out_dir=True):
 		body = md.convert(body)
 	body = OUT_HEAD % replacement + body
 	
-	overwrite = os.path.exists(file)
-	dirs = os.path.dirname(file)
+	
 	os.makedirs(dirs, exist_ok=True)
 	
 	with open(file, 'w') as fp:
@@ -369,6 +383,7 @@ class LinkCmd:
 		id = int(cmdv[2])
 		if id < 1:
 			site.remove_link(path)
+			print('Unlinked: \'%s\'' % (path, ))
 			return True
 		
 		if site.add_link(path, id):
@@ -394,7 +409,8 @@ class LinksCmd:
 		for row in cursor.execute('SELECT path,id FROM links'):
 			path = row[0]
 			id = row[1]
-			print(path, '->', id)
+			if id != None:
+				print(path, '->', id)
 		
 		cursor.close()
 	
