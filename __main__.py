@@ -14,11 +14,12 @@ if __name__ == '__main__':
 			'pages': cmd.PagesCmd(),
 			'link': cmd.LinkCmd(),
 			'links': cmd.LinksCmd(),
-			'out': cmd.OutCmd()
+			'out': cmd.OutCmd(),
+			'config': cmd.ConfigCmd()
 		}
 		
 		while running:
-			input_text = input('> ')
+			input_text = input('> ').strip()
 			if len(input_text) == 0:
 				continue
 			

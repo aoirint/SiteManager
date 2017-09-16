@@ -30,6 +30,9 @@ OUT_HEAD = '''<!DOCTYPE html>
 
 FORMAT_KEYS = [v['key'] for v in FORMATS]
 
+md = markdown.Markdown()
+
+
 
 def edit_temp(content='',suffix=''):
 	with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False) as fp:
@@ -57,6 +60,118 @@ def to_format(keyOrIdx):
 		key = keyOrIdx
 		return FORMATS[FORMAT_KEYS.index(key)]
 	return None
+
+def askAutoLink(id, postedTime, site):
+	date = datetime.date.fromtimestamp(postedTime)
+	autopath = '%s/%s' % (date.strftime('%Y/%m/%d'), id)
+	
+	if not site.path_exists(autopath):
+		if (input('Set link \'%s\' -> %d? (y/n)> ' % (autopath, id)) == 'y'):
+			site.add_link(autopath, id)
+			print('Linked: \'%s\' -> %d' % (autopath, id))
+		else:
+			print('Canceled autolink')
+
+def checkOutDir(site, out_dir, print_out_dir=False):
+	if not out_dir:
+		out_dir = site.get_config('out_dir')
+		if not out_dir:
+			out_dir = input('Out dir> ')
+			if not out_dir:
+				print('Invalid out_dir: \'%s\'' % out_dir)
+				return None
+	
+	site.set_config('out_dir', out_dir)
+	if print_out_dir:
+		print('Out Dir: %s' % out_dir)
+	return out_dir
+
+def outAll(site, out_dir=None, print_out_dir=True):
+	out_dir = checkOutDir(site, out_dir, print_out_dir)
+	if not out_dir:
+		return False
+	
+	cursor = site.db.cursor()
+	
+	links = []
+	for row in cursor.execute('SELECT * FROM links'):
+		links.append({
+			'path': row[0],
+			'id': row[1],
+			'lastOutTime': row[2]
+		})
+	cursor.close()
+	
+	for link in links:
+		out(site, link, out_dir, False)
+	return True
+
+def out(site, link, out_dir=None, print_out_dir=True):
+	out_dir = checkOutDir(site, out_dir, print_out_dir)
+	if not out_dir:
+		return False
+	
+	cursor = site.db.cursor()
+	path = link['path']
+	id = link['id']
+	lastOutTime = link['lastOutTime'] or 0
+	
+	cursor.execute('SELECT * FROM pages WHERE id=?', (id, ))
+	row = cursor.fetchone()
+	if row == None:
+		print('Not found ID(%d) for %s' % (id, path))
+		return False
+	cursor.close()
+
+	postedTime = row[1]
+	modifiedTime = row[2]
+	title = row[3]
+	format = row[4]
+	body = row[5]
+	
+	file = os.path.join(out_dir, '%s.html' % path)
+	
+	replacement = {
+		'title': title,
+		'postedTime': postedTime,
+		'modifiedTime': modifiedTime
+	}
+	
+	body = body % replacement
+	
+	if format == 'markdown':
+		body = md.convert(body)
+	body = OUT_HEAD % replacement + body
+	
+	overwrite = os.path.exists(file)
+	dirs = os.path.dirname(file)
+	os.makedirs(dirs, exist_ok=True)
+	
+	with open(file, 'w') as fp:
+		fp.write(body)
+	site.on_out(path)
+	
+	msg = ''
+	if overwrite:
+		msg = 'Overwrite'
+	else:
+		msg = 'New'
+	print(path, '->', id, title, msg)
+	
+	return True
+
+def out_by_id(site, id, out_dir=None):
+	cursor = site.db.cursor()
+	for link in cursor.execute('SELECT * FROM links WHERE id=?', (id, )):
+		out(site, link, out_dir)
+	cursor.close()
+
+#def clear_out(site, out_dir):
+#	cursor = site.db.cursor()
+#	cursor.execute('UPDATE links SET lastOutTime=NULL')
+#	
+#	site.db.commit()
+#	cursor.close()
 
 class Cmd:
 	def __call__(self, cmdv, cmdc, opts, site):
@@ -154,9 +269,13 @@ class PostCmd(Cmd):
 			print('Canceled:', 'No update')
 			return False
 		else:
-			id = site.post(None, title, format['key'], body)
-			
+			posted = site.post(None, title, format['key'], body)
+			id = posted['id']
+			title = posted['title']
+			postedTime = posted['postedTime']
 			print('Posted:', '\'%s\'' % title, 'as ID(%d)' % id)
+			
+			askAutoLink(id, postedTime, site)
 			return True
 
 	def print_help(self):
@@ -180,8 +299,8 @@ class EditCmd(Cmd):
 			return False
 		
 		cursor = site.db.cursor()
-		cursor.execute('SELECT title,format,body from pages WHERE id=?', (id, ))
-		title, format, body = cursor.fetchone()
+		cursor.execute('SELECT postedTime,title,format,body from pages WHERE id=?', (id, ))
+		postedTime, title, format, body = cursor.fetchone()
 		cursor.close()
 		
 		title_updated = False
@@ -215,13 +334,17 @@ class EditCmd(Cmd):
 				print('Canceled:', 'Null body')
 				return False
 		
-		if title_updated or format_updated or body_updated:
-			id = site.post(id, title, format['key'], body)
+		updated = title_updated or format_updated or body_updated
+		if updated:
+			posted = site.post(id, title, format['key'], body)
+			id = posted['id']
+			title = posted['title']
 			print('Edited:', '\'%s\'' % title, 'as ID(%d)' % id)
-			return True
 		else:
 			print('Canceled:', 'No update')
-			return False
+		
+		askAutoLink(id, postedTime, site)
+		return updated
 	
 	def print_help(self):
 		print('''EditCmd:
@@ -233,7 +356,7 @@ class LinkCmd:
 	def __call__(self, cmdv, cmdc, opts, site):
 		print('LinkCmd')
 		if cmdc != 3:
-			print('Invalid call: The number of arguments must be 2, link <path> <id>')
+			print('Invalid call: The number of arguments must be 1 or 2, link -a <id> or link <path> <id>')
 			return False
 		
 		path = cmdv[1]
@@ -243,7 +366,7 @@ class LinkCmd:
 			return True
 		
 		if site.add_link(path, id):
-			print('Linked:', path, '->', id)
+			print('Linked: \'%s\' -> %d' % (path, id))
 			return True
 		else:
 			print('Failed: Not found ID(%d)' % id)
@@ -277,78 +400,50 @@ class LinksCmd:
 class OutCmd:
 	def __call__(self, cmdv, cmdc, opts, site):
 		print('OutCmd')
-		if cmdc != 2:
-			print('Invalid call: The number of arguments must be 1, out <out_dir>')
+		
+		if not cmdc in (1, 2):
+			print('Invalid call: The number of arguments must be 0 or 1, out, out <out_dir>')
 			return False
 		
-		dir = cmdv[1]
-		overwrite_dir = False
-		if os.path.exists(dir):
-			if input('Dir \'%s\'is already exists, overwrite? (y/n)> ' % dir) == 'y':
-				overwrite_dir = True
+		if cmdc == 1:
+			out_dir = None
+		elif cmdc == 2:
+			out_dir = cmdv[1]
+			overwrite_dir = False
+			if os.path.exists(out_dir):
+				if input('Dir \'%s\'is already exists, overwrite? (y/n)> ' % out_dir) == 'y':
+					overwrite_dir = True
+				else:
+					print('Canceled')
+					return False
 			else:
-				print('Canceled')
-				return False
-		else:
-			os.mkdir(dir)
+				os.mkdir(out_dir)
 		
-		cursor = site.db.cursor()
-		md = markdown.Markdown()
-		
-		links = []
-		for row in cursor.execute('SELECT * FROM links'):
-			links.append({
-				'path': row[0],
-				'id': row[1],
-				'lastOutTime': row[2] or 0
-			})
-		
-		for link in links:
-			path = link['path']
-			id = link['id']
-			lastOutTime = link['lastOutTime']
-			
-			cursor.execute('SELECT * FROM pages WHERE id=?', (id, ))
-			row = cursor.fetchone()
-			if row == None:
-				print('Not found ID(%d) for %s' % (id, path))
-				continue
-
-			postedTime = row[1]
-			modifiedTime = row[2]
-			title = row[3]
-			format = row[4]
-			body = row[5]
-			
-			file = os.path.join(dir, '%s.html' % path)
-			
-			replacement = {
-				'title': title,
-				'postedTime': postedTime,
-				'modifiedTime': modifiedTime
-			}
-			
-			body = body % replacement
-			
-			if format == 'markdown':
-				body = md.convert(body)
-			body = OUT_HEAD % replacement + body
-			
-			overwrite = os.path.exists(file)
-			with open(file, 'w') as fp:
-				fp.write(body)
-			site.on_out(path)
-			
-			msg = ''
-			if overwrite:
-				msg = 'Overwrite'
-			else:
-				msg = 'New'
-			print(path, '->', id, title, msg)
-		
-		return True
+		return outAll(site, out_dir)
 	
 	def print_help(self):
 		print('''OutCmd:
+	out:
+		前回の出力ディレクトリに出力
 	out <out_dir>:
-		出力''')
+		指定ディレクトリに出力''')
+
+
+
+class ConfigCmd:
+	def __call__(self, cmdv, cmdc, opts, site):
+		print('ConfigCmd')
+		if cmdc != 3:
+			print('Invalid call: The number of arguments must be 2, config <key> <value>')
+			return False
+		
+		key = cmdv[1]
+		value = cmdv[2]
+		site.set_config(key, value)
+		print('Set config: %s -> %s' % (key, value))
+		return True
+	
+	def print_help(self):
+		print('''ConfigCmd:
+	config:
+		''')

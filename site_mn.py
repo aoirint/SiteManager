@@ -9,6 +9,7 @@ class Site:
 		cursor = self.db.cursor()
 		cursor.execute('CREATE TABLE IF NOT EXISTS pages (id INTEGER PRIMARY KEY AUTOINCREMENT, postedTime INTEGER, modifiedTime INTEGER, title TEXT, format TEXT, body TEXT)')
 		cursor.execute('CREATE TABLE IF NOT EXISTS links (path TEXT UNIQUE, id INTEGER, lastOutTime INTEGER)')
+		cursor.execute('CREATE TABLE IF NOT EXISTS config (key TEXT UNIQUE, value TEXT)')
 		self.db.commit()
 		cursor.close()
 	
@@ -26,11 +27,20 @@ class Site:
 		cursor.execute('REPLACE INTO pages(id,postedTime,modifiedTime,title,format,body) VALUES(?,?,?,?,?,?)', (id, postedTime, now, title, format, body))
 		self.db.commit()
 		
-		cursor.execute('SELECT id FROM pages WHERE ROWID=last_insert_rowid()')
+		cursor.execute('SELECT * FROM pages WHERE ROWID=last_insert_rowid()')
 		row = cursor.fetchone()
 		cursor.close()
 		
-		return row[0] if row != None else None
+		if row == None:
+			return None
+		return {
+			'id': row[0],
+			'postedTime': row[1],
+			'modifiedTime': row[2],
+			'title': row[3],
+			'format': row[4],
+			'body': row[5]
+		}
 	
 	def exists(self, id):
 		cursor = self.db.cursor()
@@ -56,6 +66,13 @@ class Site:
 		self.db.commit()
 		cursor.close()
 	
+	def path_exists(self, path):
+		cursor = self.db.cursor()
+		cursor.execute('SELECT COUNT(*) FROM links WHERE path=?', (path, ))
+		flag = cursor.fetchone()[0] != 0
+		cursor.close()
+		return flag
+	
 	def on_out(self, path):
 		now = int(time.time())
 		
@@ -74,6 +91,23 @@ class Site:
 			return row[0]
 		return None
 	
+	def get_config(self, key):
+		cursor = self.db.cursor()
+		cursor.execute('SELECT value FROM config WHERE key=?', (key, ))
+		row = cursor.fetchone()
+		cursor.close()
+		
+		if row != None:
+			return row[0]
+		return None
+
+	def set_config(self, key, value):
+		cursor = self.db.cursor()
+		cursor.execute('REPLACE INTO config VALUES(?,?)', (key, value))
+		row = cursor.fetchone()
+		self.db.commit()
+		cursor.close()
+		
 	def close(self):
 		self.db.close()
 	
