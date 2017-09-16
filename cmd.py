@@ -1,27 +1,32 @@
 import os
 import datetime
 import tempfile
+import markdown
 
 FORMATS = [
 	{
 		'key': 'html',
 		'extension': '.html',
-		'template': '''<!DOCTYPE html>
-<meta charset="UTF-8">
-<title>%(title)s</title>
+		'template': '''<h1>%(title)s</h1>
 
-<h1>%(title)s</h1>
 '''
 	},
 	{
 		'key': 'markdown',
 		'extension': '.md',
 		'template': '''# %(title)s
+
 '''
 	}
 ]
 EDIT = 'vim %s'
 
+OUT_HEAD = '''<!DOCTYPE html>
+<meta charset="UTF-8">
+<title>%(title)s</title>
+<link rel="stylesheet" href="style.css">
+
+'''
 
 FORMAT_KEYS = [v['key'] for v in FORMATS]
 
@@ -219,6 +224,131 @@ class EditCmd(Cmd):
 			return False
 	
 	def print_help(self):
-		print('''PostCmd:
+		print('''EditCmd:
 	edit <id>:
 		既存のページを編集する''')
+
+
+class LinkCmd:
+	def __call__(self, cmdv, cmdc, opts, site):
+		print('LinkCmd')
+		if cmdc != 3:
+			print('Invalid call: The number of arguments must be 2, link <path> <id>')
+			return False
+		
+		path = cmdv[1]
+		id = int(cmdv[2])
+		if id < 1:
+			site.remove_link(path)
+			return True
+		
+		if site.add_link(path, id):
+			print('Linked:', path, '->', id)
+			return True
+		else:
+			print('Failed: Not found ID(%d)' % id)
+			return False
+	
+	def print_help(self):
+		print('''LinkCmd:
+	link <path> <id>:
+		パスを設定する、idが1より小さい場合パスを削除''')
+
+class LinksCmd:
+	def __call__(self, cmdv, cmdc, opts, site):
+		print('LinksCmd')
+		if cmdc != 1:
+			print('Invalid call: The number of arguments must be 0, links')
+			return False
+		
+		cursor = site.db.cursor()
+		for row in cursor.execute('SELECT path,id FROM links'):
+			path = row[0]
+			id = row[1]
+			print(path, '->', id)
+		
+		cursor.close()
+	
+	def print_help(self):
+		print('''LinksCmd:
+	links:
+		パスのリストを出力する''')
+
+class OutCmd:
+	def __call__(self, cmdv, cmdc, opts, site):
+		print('OutCmd')
+		if cmdc != 2:
+			print('Invalid call: The number of arguments must be 1, out <out_dir>')
+			return False
+		
+		dir = cmdv[1]
+		overwrite_dir = False
+		if os.path.exists(dir):
+			if input('Dir \'%s\'is already exists, overwrite? (y/n)> ' % dir) == 'y':
+				overwrite_dir = True
+			else:
+				print('Canceled')
+				return False
+		else:
+			os.mkdir(dir)
+		
+		cursor = site.db.cursor()
+		md = markdown.Markdown()
+		
+		links = []
+		for row in cursor.execute('SELECT * FROM links'):
+			links.append({
+				'path': row[0],
+				'id': row[1],
+				'lastOutTime': row[2] or 0
+			})
+		
+		for link in links:
+			path = link['path']
+			id = link['id']
+			lastOutTime = link['lastOutTime']
+			
+			cursor.execute('SELECT * FROM pages WHERE id=?', (id, ))
+			row = cursor.fetchone()
+			if row == None:
+				print('Not found ID(%d) for %s' % (id, path))
+				continue
+
+			postedTime = row[1]
+			modifiedTime = row[2]
+			title = row[3]
+			format = row[4]
+			body = row[5]
+			
+			file = os.path.join(dir, '%s.html' % path)
+			
+			replacement = {
+				'title': title,
+				'postedTime': postedTime,
+				'modifiedTime': modifiedTime
+			}
+			
+			body = body % replacement
+			
+			if format == 'markdown':
+				body = md.convert(body)
+			body = OUT_HEAD % replacement + body
+			
+			overwrite = os.path.exists(file)
+			with open(file, 'w') as fp:
+				fp.write(body)
+			site.on_out(path)
+			
+			msg = ''
+			if overwrite:
+				msg = 'Overwrite'
+			else:
+				msg = 'New'
+			print(path, '->', id, title, msg)
+		
+		return True
+	
+	def print_help(self):
+		print('''OutCmd:
+	out <out_dir>:
+		出力''')

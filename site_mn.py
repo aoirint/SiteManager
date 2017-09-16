@@ -8,6 +8,7 @@ class Site:
 		
 		cursor = self.db.cursor()
 		cursor.execute('CREATE TABLE IF NOT EXISTS pages (id INTEGER PRIMARY KEY AUTOINCREMENT, postedTime INTEGER, modifiedTime INTEGER, title TEXT, format TEXT, body TEXT)')
+		cursor.execute('CREATE TABLE IF NOT EXISTS links (path TEXT UNIQUE, id INTEGER, lastOutTime INTEGER)')
 		self.db.commit()
 		cursor.close()
 	
@@ -38,6 +39,40 @@ class Site:
 		cursor.close()
 		
 		return result != 0
+	
+	def add_link(self, path, id):
+		if not self.exists(id):
+			return False
+		
+		cursor = self.db.cursor()
+		cursor.execute('REPLACE INTO links VALUES(?,?,NULL)', (path, id))
+		self.db.commit()
+		cursor.close()
+		return True
+	
+	def remove_link(self, path):
+		cursor = self.db.cursor()
+		cursor.execute('DELETE FROM links WHERE path=?', (path, ))
+		self.db.commit()
+		cursor.close()
+	
+	def on_out(self, path):
+		now = int(time.time())
+		
+		cursor = self.db.cursor()
+		cursor.execute('UPDATE links SET lastOutTime=? WHERE path=?', (path, now))
+		self.db.commit()
+		cursor.close()
+	
+	def get_last_out_time(self, path):
+		cursor = self.db.cursor()
+		cursor.execute('SELECT lastOutTime FROM links WHERE path=?', (path, ))
+		row = cursor.fetchone()
+		cursor.close()
+		
+		if row != None:
+			return row[0]
+		return None
 	
 	def close(self):
 		self.db.close()

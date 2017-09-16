@@ -11,7 +11,10 @@ if __name__ == '__main__':
 		cmds = {
 			'post': cmd.PostCmd(),
 			'edit': cmd.EditCmd(),
-			'pages': cmd.PagesCmd()
+			'pages': cmd.PagesCmd(),
+			'link': cmd.LinkCmd(),
+			'links': cmd.LinksCmd(),
+			'out': cmd.OutCmd()
 		}
 		
 		while running:
